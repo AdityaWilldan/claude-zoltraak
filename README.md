@@ -2,9 +2,10 @@
 
 ### *“Menembus Batasan Rate Limit dengan Sihir Pemusnah”*
 
-[![Node.js](https://img.shields.io/badge/Node.js-18%2B-green)](https://nodejs.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![OpenRouter](https://img.shields.io/badge/OpenRouter-API-blue)](https://openrouter.ai/)
+[![Node.js](https://img.shields.io/badge/Node.js-18%2B-green?style=for-the-badge&logo=nodedotjs)](https://nodejs.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
+[![OpenRouter](https://img.shields.io/badge/OpenRouter-API-blue?style=for-the-badge&logo=openrouter)](https://openrouter.ai/)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=for-the-badge)](http://makeapullrequest.com)
 
 ---
 
@@ -12,7 +13,7 @@
 
 **Claude Zoltraak** adalah *smart gateway* dan *local proxy* yang dirancang untuk **Claude Code CLI**. Ia bertindak sebagai lapisan intelijen di antara CLI dan OpenRouter API, menangani **rotasi API key otomatis**, **fallback model cerdas**, dan **session consistency** — tanpa perlu intervensi manual.
 
-> “Seperti Zoltraak dalam anime Frieren — sebuah mantra ofensif yang mampu menembus pertahanan apapun. Tools ini menembus batasan rate limit dan kuota harian, memastikan workflow coding-mu tak pernah terhenti.”
+> Nama **Zoltraak** terinspirasi dari anime *Frieren: Beyond Journey's End*—mantra ofensif paling efisien yang mampu menembus pertahanan apapun. Seperti namanya, tools ini menembus batasan rate limit dan kuota harian, memastikan alur kerjamu tak pernah terputus.
 
 ---
 
@@ -45,7 +46,7 @@
 ## 📦 Prasyarat
 
 - **Node.js** v18 atau lebih baru ([Download](https://nodejs.org/))
-- **NPM** (biasanya ikut Node.js)
+- **NPM** (biasanya sudah termasuk dalam instalasi Node.js)
 - **Koneksi internet** (untuk akses OpenRouter API)
 - **Akun OpenRouter** (minimal 1 API key gratis) — [Daftar di sini](https://openrouter.ai/)
 
