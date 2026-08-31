@@ -1,3 +1,4 @@
+<p align="center"> <img src="./claude_zoltraak.png" alt="Claude Zoltraak" width="800"> </p>
 # ⚔️ Claude Zoltraak
 
 ### *"Menembus Batasan Rate Limit dengan Sihir Pemusnah"*
