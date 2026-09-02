@@ -57,7 +57,6 @@ let AVAILABLE_MODELS = [
   'openrouter/free',
 ];
 
-// Daftar lengkap model untuk scan (dari test_models.js)
 const ALL_MODELS_TO_SCAN = [
   'minimax/minimax-m3:free',
   'google/gemini-2.0-flash-exp:free',
@@ -80,9 +79,8 @@ const ALL_MODELS_TO_SCAN = [
 // ============================================================
 let currentKeyIndex = 0;
 let modelRoundRobinIndex = 0;
-
 const sessionDataMap = new Map();
-const SESSION_TIMEOUT = 60; // detik
+const SESSION_TIMEOUT = 60;
 
 // ============================================================
 // 3. FUNGSI LOG DENGAN PROMPT ULANG
@@ -101,117 +99,81 @@ function log(message) {
 }
 
 // ============================================================
-// 4. FUNGSI SCAN (terintegrasi dari test_models.js)
+// 4. FUNGSI SCAN
 // ============================================================
 async function scanModels(modelsToTest) {
   if (!modelsToTest || modelsToTest.length === 0) {
-    log('❌ Tidak ada model yang diberikan untuk scan.');
+    log('[X] Tidak ada model yang diberikan untuk scan.');
     return;
   }
-
   if (API_KEYS.length === 0) {
-    log('❌ Tidak ada API Key. Tambahkan key dulu dengan /keys set ...');
+    log('[X] Tidak ada API Key. Tambahkan key dulu dengan /keys set ...');
     return;
   }
 
-  log(`🚀 Memulai scan ${modelsToTest.length} model dengan ${API_KEYS.length} API Key...\n`);
-
+  log(`[>>] Memulai scan ${modelsToTest.length} model dengan ${API_KEYS.length} API Key...\n`);
   const resultsByKey = {};
 
   for (let keyIndex = 0; keyIndex < API_KEYS.length; keyIndex++) {
     const key = API_KEYS[keyIndex];
     const keyLabel = `Key ${keyIndex + 1}`;
-    log(`═══════════════════════════════════════════════`);
-    log(`🔑 Menguji ${keyLabel} (${key.substring(0, 15)}...)`);
-    log(`═══════════════════════════════════════════════`);
-
+    log(`========================================`);
+    log(`[KEY] Menguji ${keyLabel} (${key.substring(0, 15)}...)`);
+    log(`========================================`);
     const keyResults = [];
 
     for (let modelIndex = 0; modelIndex < modelsToTest.length; modelIndex++) {
       const model = modelsToTest[modelIndex];
-      process.stdout.write(`  🔄 Model ${modelIndex+1}/${modelsToTest.length}: ${model} ... `);
+      process.stdout.write(`  [~] Model ${modelIndex+1}/${modelsToTest.length}: ${model} ... `);
 
       try {
-        const response = await axios.post(
+        await axios.post(
           'https://openrouter.ai/api/v1/chat/completions',
-          {
-            model: model,
-            messages: [{ role: 'user', content: 'Say "OK" if you can read this.' }],
-            max_tokens: 5,
-          },
-          {
-            headers: {
-              'Authorization': `Bearer ${key}`,
-              'Content-Type': 'application/json',
-              'HTTP-Referer': 'http://localhost:3000',
-            },
-            timeout: 15000,
-          }
+          { model, messages: [{ role: 'user', content: 'Say "OK" if you can read this.' }], max_tokens: 5 },
+          { headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json', 'HTTP-Referer': 'http://localhost:3000' }, timeout: 15000 }
         );
-        console.log(`✅ BERHASIL`);
+        console.log(`[OK] BERHASIL`);
         keyResults.push({ model, success: true });
       } catch (error) {
         const status = error.response?.status || 'timeout';
         const msg = error.response?.data?.error?.message || error.message;
-        console.log(`❌ GAGAL (${status})${msg ? ': ' + msg.substring(0, 60) : ''}`);
+        console.log(`[X] GAGAL (${status})${msg ? ': ' + msg.substring(0, 60) : ''}`);
         keyResults.push({ model, success: false, error: msg });
       }
-
-      // Jeda 1 detik agar tidak kena rate limit
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
     resultsByKey[keyLabel] = keyResults;
-    log(`\n📊 ${keyLabel} selesai.`);
-    log(`   ✅ Berhasil: ${keyResults.filter(r => r.success).length}/${modelsToTest.length}`);
-    log(`   ❌ Gagal  : ${keyResults.filter(r => !r.success).length}/${modelsToTest.length}\n`);
+    log(`\n[*] ${keyLabel} selesai.`);
+    log(`   [OK] Berhasil: ${keyResults.filter(r => r.success).length}/${modelsToTest.length}`);
+    log(`   [X] Gagal  : ${keyResults.filter(r => !r.success).length}/${modelsToTest.length}\n`);
   }
 
-  // ============================================================
-  // RINGKASAN AKHIR
-  // ============================================================
-  log('\n\n═══════════════════════════════════════════════');
-  log('📋 RINGKASAN HASIL SCAN');
-  log('═══════════════════════════════════════════════\n');
+  log('\n\n========================================');
+  log('[SUMMARY] RINGKASAN HASIL SCAN');
+  log('========================================\n');
 
   const successByModel = {};
-  modelsToTest.forEach(model => {
-    successByModel[model] = [];
-  });
-
+  modelsToTest.forEach(model => { successByModel[model] = []; });
   for (const [keyLabel, results] of Object.entries(resultsByKey)) {
-    results.forEach(r => {
-      if (r.success) {
-        successByModel[r.model].push(keyLabel);
-      }
-    });
+    results.forEach(r => { if (r.success) successByModel[r.model].push(keyLabel); });
   }
 
-  log('✅ Model yang BERHASIL di minimal 1 key:');
+  log('[OK] Model yang BERHASIL di minimal 1 key:');
   let foundAny = false;
   for (const [model, keys] of Object.entries(successByModel)) {
-    if (keys.length > 0) {
-      foundAny = true;
-      log(`  - ${model} (berhasil di ${keys.join(', ')})`);
-    }
+    if (keys.length > 0) { foundAny = true; log(`  - ${model} (berhasil di ${keys.join(', ')})`); }
   }
-  if (!foundAny) {
-    log('  (Tidak ada model yang berhasil)');
-  }
+  if (!foundAny) log('  (Tidak ada model yang berhasil)');
 
-  log('\n❌ Model yang GAGAL di SEMUA key:');
+  log('\n[X] Model yang GAGAL di SEMUA key:');
   let foundFail = false;
   for (const [model, keys] of Object.entries(successByModel)) {
-    if (keys.length === 0) {
-      foundFail = true;
-      log(`  - ${model}`);
-    }
+    if (keys.length === 0) { foundFail = true; log(`  - ${model}`); }
   }
-  if (!foundFail) {
-    log('  (Semua model berhasil di setidaknya 1 key)');
-  }
+  if (!foundFail) log('  (Semua model berhasil di setidaknya 1 key)');
 
-  log('\n💡 Rekomendasi:');
+  log('\n[i] Rekomendasi:');
   const bestModels = Object.entries(successByModel)
     .filter(([model, keys]) => keys.length === API_KEYS.length)
     .map(([model]) => model);
@@ -220,7 +182,7 @@ async function scanModels(modelsToTest) {
   } else {
     log('   (Tidak ada model yang berhasil di semua key)');
   }
-  log('\n✅ Scan selesai.\n');
+  log('\n[OK] Scan selesai.\n');
 }
 
 // ============================================================
@@ -235,73 +197,65 @@ function initRepl() {
 
   rl.on('line', (line) => {
     const input = line.trim();
-    if (!input) {
-      rl.prompt();
-      return;
-    }
-
+    if (!input) { rl.prompt(); return; }
     const parts = input.split(/\s+/);
     const command = parts[0].toLowerCase();
 
     switch (command) {
       case '/keys': {
         if (parts.length === 1) {
-          log(`🔑 API Keys (${API_KEYS.length}):`);
+          log(`[KEY] API Keys (${API_KEYS.length}):`);
           API_KEYS.forEach((k, i) => log(`  ${i+1}. ${k}`));
         } else if (parts[1] === 'set') {
           const rest = parts.slice(2).join(' ');
           const newKeys = rest.split(/[,\s]+/).filter(s => s.trim() !== '');
           if (newKeys.length === 0) {
-            log('❌ Tidak ada key yang diberikan. Gunakan: /keys set key1 key2 ...');
+            log('[X] Tidak ada key yang diberikan. Gunakan: /keys set key1 key2 ...');
           } else {
             API_KEYS = newKeys;
             if (currentKeyIndex >= API_KEYS.length) currentKeyIndex = 0;
-            log(`✅ API Keys diperbarui: ${API_KEYS.length} keys`);
+            log(`[OK] API Keys diperbarui: ${API_KEYS.length} keys`);
           }
         } else {
-          log('❌ Perintah tidak dikenal. Gunakan: /keys atau /keys set key1 key2 ...');
+          log('[X] Perintah tidak dikenal. Gunakan: /keys atau /keys set key1 key2 ...');
         }
         break;
       }
 
       case '/models': {
         if (parts.length === 1) {
-          log(`🧠 Models (${AVAILABLE_MODELS.length}):`);
+          log(`[MODEL] Models (${AVAILABLE_MODELS.length}):`);
           AVAILABLE_MODELS.forEach((m, i) => log(`  ${i+1}. ${m}`));
         } else if (parts[1] === 'set') {
           const rest = parts.slice(2).join(' ');
           const newModels = rest.split(/[,\s]+/).filter(s => s.trim() !== '');
           if (newModels.length === 0) {
-            log('❌ Tidak ada model yang diberikan. Gunakan: /models set model1 model2 ...');
+            log('[X] Tidak ada model yang diberikan. Gunakan: /models set model1 model2 ...');
           } else {
             AVAILABLE_MODELS = newModels;
             if (modelRoundRobinIndex >= AVAILABLE_MODELS.length) modelRoundRobinIndex = 0;
-            log(`✅ Models diperbarui: ${AVAILABLE_MODELS.length} models`);
+            log(`[OK] Models diperbarui: ${AVAILABLE_MODELS.length} models`);
           }
         } else {
-          log('❌ Perintah tidak dikenal. Gunakan: /models atau /models set model1 model2 ...');
+          log('[X] Perintah tidak dikenal. Gunakan: /models atau /models set model1 model2 ...');
         }
         break;
       }
 
       case '/scan': {
-        // Menangani /scan, /scan all, /scan model1,model2,...
         if (parts.length === 1) {
-          // Scan model yang ada di AVAILABLE_MODELS
-          log(`📡 Mulai scan dengan model dari AVAILABLE_MODELS (${AVAILABLE_MODELS.length} model)`);
+          log(`[>>] Mulai scan dengan model dari AVAILABLE_MODELS (${AVAILABLE_MODELS.length} model)`);
           scanModels(AVAILABLE_MODELS);
         } else if (parts[1] === 'all') {
-          // Scan semua model dari daftar lengkap
-          log(`📡 Mulai scan ALL_MODELS_TO_SCAN (${ALL_MODELS_TO_SCAN.length} model)`);
+          log(`[>>] Mulai scan ALL_MODELS_TO_SCAN (${ALL_MODELS_TO_SCAN.length} model)`);
           scanModels(ALL_MODELS_TO_SCAN);
         } else {
-          // Scan model yang diberikan manual
           const rest = parts.slice(1).join(' ');
           const models = rest.split(/[,\s]+/).filter(s => s.trim() !== '');
           if (models.length === 0) {
-            log('❌ Tidak ada model yang diberikan. Gunakan: /scan model1 model2 ...');
+            log('[X] Tidak ada model yang diberikan. Gunakan: /scan model1 model2 ...');
           } else {
-            log(`📡 Mulai scan ${models.length} model yang diberikan...`);
+            log(`[>>] Mulai scan ${models.length} model yang diberikan...`);
             scanModels(models);
           }
         }
@@ -310,11 +264,11 @@ function initRepl() {
 
       case '/reset':
         sessionDataMap.clear();
-        log('🔄 Semua sesi aktif telah dihapus. Model baru akan digunakan untuk request berikutnya.');
+        log('[OK] Semua sesi aktif telah dihapus. Model baru akan digunakan untuk request berikutnya.');
         break;
 
       case '/status':
-        log('📊 Status Proxy:');
+        log('[STATUS] Status Proxy:');
         log(`  - Keys: ${API_KEYS.length} (current index: ${currentKeyIndex})`);
         log(`  - Models: ${AVAILABLE_MODELS.length} (round-robin index: ${modelRoundRobinIndex})`);
         log(`  - Active sessions: ${sessionDataMap.size}`);
@@ -322,7 +276,7 @@ function initRepl() {
         break;
 
       case '/help':
-        log('📖 Perintah yang tersedia:');
+        log('[HELP] Perintah yang tersedia:');
         log('  /keys                → lihat daftar API keys');
         log('  /keys set k1 k2 k3   → ganti API keys (pisahkan dengan spasi atau koma)');
         log('  /models              → lihat daftar models');
@@ -337,21 +291,19 @@ function initRepl() {
         break;
 
       case '/exit':
-        log('👋 Keluar dari REPL. Proxy tetap berjalan di background.');
+        log('[OK] Keluar dari REPL. Proxy tetap berjalan di background.');
         rl.close();
         return;
 
       default:
-        log(`❌ Perintah tidak dikenal: "${command}". Ketik /help untuk bantuan.`);
+        log(`[X] Perintah tidak dikenal: "${command}". Ketik /help untuk bantuan.`);
     }
-
     rl.prompt();
   });
 
   rl.on('close', () => {
-    log('REPL ditutup. Proxy tetap berjalan.');
+    log('[OK] REPL ditutup. Proxy tetap berjalan.');
   });
-
   rl.prompt();
 }
 
@@ -373,7 +325,7 @@ app.post('/keys', (req, res) => {
   }
   API_KEYS = newKeys;
   if (currentKeyIndex >= API_KEYS.length) currentKeyIndex = 0;
-  log(`🔑 API Keys diperbarui via HTTP: ${API_KEYS.length} keys`);
+  log(`[OK] API Keys diperbarui via HTTP: ${API_KEYS.length} keys`);
   res.json({ message: 'API Keys berhasil diperbarui', keys: API_KEYS });
 });
 
@@ -388,7 +340,7 @@ app.post('/models', (req, res) => {
   }
   AVAILABLE_MODELS = newModels;
   if (modelRoundRobinIndex >= AVAILABLE_MODELS.length) modelRoundRobinIndex = 0;
-  log(`🧠 Models diperbarui via HTTP: ${AVAILABLE_MODELS.length} models`);
+  log(`[OK] Models diperbarui via HTTP: ${AVAILABLE_MODELS.length} models`);
   res.json({ message: 'Models berhasil diperbarui', models: AVAILABLE_MODELS });
 });
 
@@ -397,7 +349,7 @@ app.post('/models', (req, res) => {
 // ============================================================
 app.use('/v1', async (req, res) => {
   if (API_KEYS.length === 0 || AVAILABLE_MODELS.length === 0) {
-    log('❌ Konfigurasi kosong!');
+    log('[X] Konfigurasi kosong!');
     return res.status(500).json({ error: 'Konfigurasi kosong. Tambahkan key dan model.' });
   }
 
@@ -410,13 +362,13 @@ app.use('/v1', async (req, res) => {
   if (sessionData && (now - sessionData.lastActivity) < SESSION_TIMEOUT * 1000) {
     sessionModel = sessionData.model;
     sessionData.lastActivity = now;
-    log(`♻️ Sesi lanjutan: ${sessionKey.substring(0, 25)}... → Model: ${sessionModel}`);
+    log(`[R] Sesi lanjutan: ${sessionKey.substring(0, 25)}... → Model: ${sessionModel}`);
   } else {
     if (modelRoundRobinIndex >= AVAILABLE_MODELS.length) modelRoundRobinIndex = 0;
     sessionModel = AVAILABLE_MODELS[modelRoundRobinIndex];
     modelRoundRobinIndex = (modelRoundRobinIndex + 1) % AVAILABLE_MODELS.length;
     sessionDataMap.set(sessionKey, { model: sessionModel, lastActivity: now });
-    log(`🆕 Sesi baru: ${sessionKey.substring(0, 25)}... → Model: ${sessionModel}`);
+    log(`[NEW] Sesi baru: ${sessionKey.substring(0, 25)}... → Model: ${sessionModel}`);
     if (sessionDataMap.size > 100) {
       const firstKey = sessionDataMap.keys().next().value;
       sessionDataMap.delete(firstKey);
@@ -424,11 +376,7 @@ app.use('/v1', async (req, res) => {
   }
 
   const primaryModel = sessionModel;
-  const modelsToTry = [
-    primaryModel,
-    ...AVAILABLE_MODELS.filter(m => m !== primaryModel)
-  ];
-
+  const modelsToTry = [primaryModel, ...AVAILABLE_MODELS.filter(m => m !== primaryModel)];
   const maxAttempts = API_KEYS.length * modelsToTry.length * 2;
   let attempts = 0;
   let tempKeyIndex = currentKeyIndex % API_KEYS.length;
@@ -438,8 +386,7 @@ app.use('/v1', async (req, res) => {
     if (tempModelIndex >= modelsToTry.length) tempModelIndex = 0;
     const key = API_KEYS[tempKeyIndex];
     const model = modelsToTry[tempModelIndex];
-
-    log(`🔄 Coba: Key[${tempKeyIndex+1}/${API_KEYS.length}] + Model: ${model}`);
+    log(`[~] Coba: Key[${tempKeyIndex+1}/${API_KEYS.length}] + Model: ${model}`);
 
     try {
       const payload = { ...req.body, model: model };
@@ -460,7 +407,7 @@ app.use('/v1', async (req, res) => {
 
       const response = await axios(axiosConfig);
       currentKeyIndex = tempKeyIndex;
-      log(`✅ Sukses! Key[${tempKeyIndex+1}] Model: ${model}`);
+      log(`[OK] Sukses! Key[${tempKeyIndex+1}] Model: ${model}`);
 
       if (isStreaming) {
         res.set(response.headers);
@@ -474,30 +421,30 @@ app.use('/v1', async (req, res) => {
       const errorMsg = error.response?.data?.error?.message || error.message;
 
       if (status === 429 || status === 401 || status === 403 || errorMsg.includes('rate limit')) {
-        log(`⚠️ Gagal (${status}) Key[${tempKeyIndex+1}]. Pindah key...`);
+        log(`[!] Gagal (${status}) Key[${tempKeyIndex+1}]. Pindah key...`);
         tempKeyIndex = (tempKeyIndex + 1) % API_KEYS.length;
         attempts++;
         if (tempKeyIndex === 0) {
-          log(`🔄 Semua key gagal untuk model ${model}. Pindah ke model berikutnya...`);
+          log(`[~] Semua key gagal untuk model ${model}. Pindah ke model berikutnya...`);
           tempModelIndex = (tempModelIndex + 1) % modelsToTry.length;
         }
         continue;
       }
 
       if (status >= 500 || errorMsg.includes('model') || errorMsg.includes('overloaded') || errorMsg.includes('not found')) {
-        log(`⚠️ Error ${status} pada model ${model}. Pindah ke model berikutnya...`);
+        log(`[!] Error ${status} pada model ${model}. Pindah ke model berikutnya...`);
         tempModelIndex = (tempModelIndex + 1) % modelsToTry.length;
         tempKeyIndex = 0;
         attempts++;
         continue;
       }
 
-      log(`💥 Error fatal: ${errorMsg}`);
+      log(`[ERR] Error fatal: ${errorMsg}`);
       return res.status(status).json({ error: errorMsg, status });
     }
   }
 
-  log('❌ Semua kombinasi Key dan Model gagal.');
+  log('[X] Semua kombinasi Key dan Model gagal.');
   res.status(429).json({
     error: '❌ Semua kombinasi Key dan Model gagal. Coba lagi nanti.',
   });
@@ -509,9 +456,10 @@ app.use('/v1', async (req, res) => {
 app.listen(PORT, () => {
   console.log(BANNER);
   console.log(TITLE_ASCII);
-  console.log(`✅ Proxy interaktif berjalan di http://localhost:${PORT}`);
-  console.log(`📌 ${API_KEYS.length} Keys siap, ${AVAILABLE_MODELS.length} Models siap.`);
-  console.log(`📌 Ketik /help untuk melihat perintah REPL.`);
-  console.log(`📌 Model akan berganti otomatis setelah ${SESSION_TIMEOUT} detik tidak ada aktivitas.`);
+  console.log(`[OK] Proxy interaktif berjalan di http://localhost:${PORT}`);
+  console.log(`[*] ${API_KEYS.length} Keys siap, ${AVAILABLE_MODELS.length} Models siap.`);
+  console.log(`[*] Ketik /help untuk melihat perintah REPL.`);
+  console.log(`[*] Model akan berganti otomatis setelah ${SESSION_TIMEOUT} detik tidak ada aktivitas.`);
   initRepl();
 });
+

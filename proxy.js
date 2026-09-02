@@ -345,7 +345,7 @@ app.post('/models', (req, res) => {
 });
 
 // ============================================================
-// 7. MIDDLEWARE PROXY
+// 7. MIDDLEWARE PROXY (DENGAN OPTIMASI EXHAUSTED KEY)
 // ============================================================
 app.use('/v1', async (req, res) => {
   if (API_KEYS.length === 0 || AVAILABLE_MODELS.length === 0) {
@@ -377,16 +377,42 @@ app.use('/v1', async (req, res) => {
 
   const primaryModel = sessionModel;
   const modelsToTry = [primaryModel, ...AVAILABLE_MODELS.filter(m => m !== primaryModel)];
-  const maxAttempts = API_KEYS.length * modelsToTry.length * 2;
-  let attempts = 0;
+
+  // --- OPTIMASI: Track key yang exhausted (429) ---
+  const exhaustedKeys = new Set(); // Simpan indeks key yang sudah limit
+  let allKeysExhausted = false;
+
+  // Fungsi untuk mendapatkan key berikutnya yang tidak exhausted
+  function getNextAvailableKey(currentIndex) {
+    let attempts = 0;
+    while (attempts < API_KEYS.length) {
+      const idx = (currentIndex + attempts) % API_KEYS.length;
+      if (!exhaustedKeys.has(idx)) {
+        return idx;
+      }
+      attempts++;
+    }
+    allKeysExhausted = true;
+    return -1; // Semua key exhausted
+  }
+
   let tempKeyIndex = currentKeyIndex % API_KEYS.length;
   let tempModelIndex = 0;
+  let attempts = 0;
+  const maxAttempts = API_KEYS.length * modelsToTry.length * 2;
 
-  while (attempts < maxAttempts) {
+  while (attempts < maxAttempts && !allKeysExhausted) {
     if (tempModelIndex >= modelsToTry.length) tempModelIndex = 0;
-    const key = API_KEYS[tempKeyIndex];
+
+    let keyIdx = getNextAvailableKey(tempKeyIndex);
+    if (allKeysExhausted) {
+      log('[X] Semua API Key sudah exhausted (429).');
+      break;
+    }
+    const key = API_KEYS[keyIdx];
     const model = modelsToTry[tempModelIndex];
-    log(`[~] Coba: Key[${tempKeyIndex+1}/${API_KEYS.length}] + Model: ${model}`);
+
+    log(`[~] Coba: Key[${keyIdx+1}/${API_KEYS.length}] + Model: ${model}`);
 
     try {
       const payload = { ...req.body, model: model };
@@ -406,8 +432,8 @@ app.use('/v1', async (req, res) => {
       };
 
       const response = await axios(axiosConfig);
-      currentKeyIndex = tempKeyIndex;
-      log(`[OK] Sukses! Key[${tempKeyIndex+1}] Model: ${model}`);
+      currentKeyIndex = keyIdx;
+      log(`[OK] Sukses! Key[${keyIdx+1}] Model: ${model}`);
 
       if (isStreaming) {
         res.set(response.headers);
@@ -421,20 +447,17 @@ app.use('/v1', async (req, res) => {
       const errorMsg = error.response?.data?.error?.message || error.message;
 
       if (status === 429 || status === 401 || status === 403 || errorMsg.includes('rate limit')) {
-        log(`[!] Gagal (${status}) Key[${tempKeyIndex+1}]. Pindah key...`);
-        tempKeyIndex = (tempKeyIndex + 1) % API_KEYS.length;
+        log(`[!] Gagal (${status}) Key[${keyIdx+1}]. Tandai exhausted.`);
+        exhaustedKeys.add(keyIdx);
+        // Coba key berikutnya
+        tempKeyIndex = (keyIdx + 1) % API_KEYS.length;
         attempts++;
-        if (tempKeyIndex === 0) {
-          log(`[~] Semua key gagal untuk model ${model}. Pindah ke model berikutnya...`);
-          tempModelIndex = (tempModelIndex + 1) % modelsToTry.length;
-        }
         continue;
       }
 
       if (status >= 500 || errorMsg.includes('model') || errorMsg.includes('overloaded') || errorMsg.includes('not found')) {
         log(`[!] Error ${status} pada model ${model}. Pindah ke model berikutnya...`);
         tempModelIndex = (tempModelIndex + 1) % modelsToTry.length;
-        tempKeyIndex = 0;
         attempts++;
         continue;
       }
@@ -444,9 +467,9 @@ app.use('/v1', async (req, res) => {
     }
   }
 
-  log('[X] Semua kombinasi Key dan Model gagal.');
+  log('[X] Semua kombinasi Key dan Model gagal (semua key mungkin exhausted).');
   res.status(429).json({
-    error: '❌ Semua kombinasi Key dan Model gagal. Coba lagi nanti.',
+    error: '❌ Semua API Key telah mencapai limit harian. Coba lagi besok atau tambah key baru.',
   });
 });
 
@@ -462,4 +485,3 @@ app.listen(PORT, () => {
   console.log(`[*] Model akan berganti otomatis setelah ${SESSION_TIMEOUT} detik tidak ada aktivitas.`);
   initRepl();
 });
-
